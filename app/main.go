@@ -18,7 +18,7 @@ func main() {
 
 	if(err != nil) {
 		fmt.Fprintln(os.Stderr, "Error reading command:", err)
-		return
+		os.Exit(1)
 	}
 	fmt.Println(command[:len(command)-1] + " command not found") // Print the command without the trailing newline
 
