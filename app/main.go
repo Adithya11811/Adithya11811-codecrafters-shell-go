@@ -10,10 +10,11 @@ import (
 // Ensures gofmt doesn't remove the "fmt" import in stage 1 (feel free to remove this!)
 var _ = fmt.Fprint
 
-// var Keywords = map[string]bool{
-// 	"exit": true,
-// 	"echo": true,
-// }
+var Keywords = map[string]bool{
+	"exit": true,
+	"echo": true,
+	"type": true,
+}
 
 func main() {
 	run()
@@ -44,7 +45,16 @@ func run() {
 		continue
 	}
 
+	if len(commands) > 0 && commands[0] == "type" {
+		// Print the type of the command
+		if _, exists := Keywords[commands[1]]; exists {
+			fmt.Println(commands[1] + " is a shell builtin")
+			continue
+		}
 
+		fmt.Println(strings.Join(commands[1:], " ") + ": not found")
+		continue
+	}
 
 	fmt.Println(strings.TrimSpace(command) + ": command not found")
 	}
