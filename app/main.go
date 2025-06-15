@@ -16,7 +16,7 @@ import (
 // Ensures gofmt doesn't remove the "fmt" import in stage 1 (feel free to remove this!)
 var _ = fmt.Fprint
 
-var builtIns = []string{"type", "echo", "exit"}
+var builtIns = []string{"type", "echo", "exit", "pwd"}
 
 
 func main() {
@@ -39,6 +39,8 @@ func main() {
 			EchoCommand(argv)
 		case "type":
 			TypeCommand(argv)
+		case "pwd":
+			getCurrentDir()
 		default:
 			filePath, exists := findBinInPath(cmd)
 			if exists {
@@ -107,4 +109,13 @@ func findBinInPath(bin string) (string, bool) {
 	}
 
 	return "", false
+}
+
+func getCurrentDir() {
+	currentDir, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error getting current directory: %s\n", err)
+
+	}
+	fmt.Fprintf(os.Stdout, "%s\n", currentDir)
 }
