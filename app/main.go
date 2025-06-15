@@ -124,6 +124,9 @@ func getCurrentDir() {
 }
 
 func changeDir(path string) {
+	if path == "~" || path == "$HOME" {
+		path = os.Getenv("HOME")
+	}
 	if err := os.Chdir(path); err != nil {
 		fmt.Fprintf(os.Stderr, "cd: %s: No such file or directory\n", path)
 	}
