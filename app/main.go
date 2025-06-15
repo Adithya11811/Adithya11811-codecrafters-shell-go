@@ -4,9 +4,14 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
+
+	// "path/filepath"
 	"slices"
 	"strconv"
 	"strings"
+
+	// "github.com/codecrafters-io/shell-starter-go/internals"
 )
 
 // Ensures gofmt doesn't remove the "fmt" import in stage 1 (feel free to remove this!)
@@ -36,17 +41,30 @@ func main() {
 		case "type":
 			TypeCommand(argv)
 		default:
-			fmt.Fprintf(os.Stdout, "%s: command not found\n", cmd)
-		}
+			filePath, exists := findBinInPath(cmd)
+			if exists {
+				command := exec.Command(filePath, argv[1:]...)
+
+				command.Args = append([]string{cmd}, argv[1:]...)
+				command.Stdout = os.Stdout
+				command.Stderr = os.Stderr
+				if err := command.Run(); err != nil {
+					fmt.Fprintf(os.Stderr, "%s: %s\n", cmd, err)
+				}
+			} else {
+				fmt.Fprintf(os.Stderr, "%s: command not found\n", cmd)
+			}
 	}
 }
+}
+
 
 func ExitCommand(argv []string) {
 	code := 0
 
 	if len(argv) > 1 {
 		argCode, err := strconv.Atoi(argv[1])
-		if err != nil {
+		if err == nil { // Only set code if conversion is successful
 			code = argCode
 		}
 	}
