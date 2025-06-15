@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	// "path/filepath"
+	"github.com/google/shlex"
 	"slices"
 	"strconv"
 	"strings"
@@ -28,7 +28,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		argv := strings.Fields(input)
+		argv, err := shlex.Split(strings.TrimSpace(input))
 		cmd := argv[0]
 
 		switch cmd {
@@ -130,4 +130,9 @@ func changeDir(path string) {
 	if err := os.Chdir(path); err != nil {
 		fmt.Fprintf(os.Stderr, "cd: %s: No such file or directory\n", path)
 	}
+}
+
+func supportQuoting(input string) string {
+	temp,_ := strconv.Unquote(input) // Remove the first and last character (quotes)
+	return temp
 }
