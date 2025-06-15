@@ -5,13 +5,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	// "path/filepath"
 	"slices"
 	"strconv"
 	"strings"
-
-	// "github.com/codecrafters-io/shell-starter-go/internals"
 )
 
 // Ensures gofmt doesn't remove the "fmt" import in stage 1 (feel free to remove this!)
@@ -101,7 +100,7 @@ func TypeCommand(argv []string) {
 func findBinInPath(bin string) (string, bool) {
 	paths := os.Getenv("PATH")
 	for _, path := range strings.Split(paths, ":") {
-		file := path + "/" + bin
+		file := filepath.Join(path, bin)
 		if _, err := os.Stat(file); err == nil {
 			return file, true
 		}
