@@ -18,7 +18,6 @@ var _ = fmt.Fprint
 
 var builtIns = []string{"type", "echo", "exit", "pwd"}
 
-
 func main() {
 	for {
 		fmt.Fprint(os.Stdout, "$ ")
@@ -41,6 +40,12 @@ func main() {
 			TypeCommand(argv)
 		case "pwd":
 			getCurrentDir()
+		case "cd":
+			if len(argv) < 2 {
+				changeDir(os.Getenv("HOME")) // Default to HOME if no argument is provided
+			} else {
+				changeDir(argv[1])
+			}
 		default:
 			filePath, exists := findBinInPath(cmd)
 			if exists {
@@ -55,10 +60,9 @@ func main() {
 			} else {
 				fmt.Fprintf(os.Stderr, "%s: command not found\n", cmd)
 			}
+		}
 	}
 }
-}
-
 
 func ExitCommand(argv []string) {
 	code := 0
@@ -84,7 +88,6 @@ func TypeCommand(argv []string) {
 	}
 
 	value := argv[1]
-
 
 	if slices.Contains(builtIns, value) {
 		fmt.Fprintf(os.Stdout, "%s is a shell builtin\n", value)
@@ -118,4 +121,10 @@ func getCurrentDir() {
 
 	}
 	fmt.Fprintf(os.Stdout, "%s\n", currentDir)
+}
+
+func changeDir(path string) {
+	if err := os.Chdir(path); err != nil {
+		fmt.Fprintf(os.Stderr, "cd: %s: No such file or directory\n", path)
+	}
 }
