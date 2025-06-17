@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
-
 	// "github.com/google/shlex"
 )
 
@@ -61,9 +60,9 @@ func main() {
 				if len(argv) == 0 {
 					command = exec.Command(filePath)
 					command.Args = []string{cmd}
-				}else {
+				} else {
 					command = exec.Command(filePath, argv[1:]...)
-					command.Args = append([]string{cmd}, argv[1: ]...)
+					command.Args = append([]string{cmd}, argv[1:]...)
 				}
 				command.Stdout = os.Stdout
 				command.Stderr = os.Stderr
@@ -159,9 +158,22 @@ func splitWithQuoting(inputString string) (string, []string) {
 	for _, c := range inputString {
 		switch {
 		case escaped:
-			current.WriteRune(c)
+			if inDoubleQuote {
+				switch c {
+				case '"', '\\', '$', '`':
+					current.WriteRune(c)
+				default:
+					current.WriteRune('\\')
+					current.WriteRune(c)
+				}
+			} else if !inSingleQuote {
+				current.WriteRune(c)
+			} else {
+				current.WriteRune('\\')
+				current.WriteRune(c)
+			}
 			escaped = false
-		case c == '\\' && !inDoubleQuote && !inSingleQuote:
+		case c == '\\' && !inSingleQuote:
 			escaped = true
 		case c == '\'' && !inDoubleQuote:
 			inSingleQuote = !inSingleQuote
@@ -177,10 +189,12 @@ func splitWithQuoting(inputString string) (string, []string) {
 		}
 	}
 
+	if escaped {
+		current.WriteRune('\\')
+	}
 	if current.Len() > 0 {
 		args = append(args, current.String())
 	}
-
 	if len(args) == 1 {
 		return args[0], []string{}
 	}
