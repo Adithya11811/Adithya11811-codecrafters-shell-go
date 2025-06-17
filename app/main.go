@@ -16,7 +16,7 @@ import (
 // Ensures gofmt doesn't remove the "fmt" import in stage 1 (feel free to remove this!)
 var _ = fmt.Fprint
 
-var builtIns = []string{"type", "echo", "exit", "pwd"}
+var builtIns = []string{"type", "echo", "exit", "pwd", "history"}
 
 func main() {
 	for {
