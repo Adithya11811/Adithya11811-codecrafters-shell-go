@@ -13,6 +13,8 @@ import (
 	// "github.com/google/shlex"
 )
 
+var history_stack []string
+
 // Ensures gofmt doesn't remove the "fmt" import in stage 1 (feel free to remove this!)
 var _ = fmt.Fprint
 
@@ -27,6 +29,8 @@ func main() {
 			fmt.Fprintf(os.Stderr, "%s\n", err)
 			os.Exit(1)
 		}
+
+		history_stack = append(history_stack, strings.TrimSpace(input))
 
 		cmd, argv := splitWithQuoting(strings.TrimSpace(input))
 		// argv, err := shlex.Split(strings.TrimSpace(input))
@@ -47,6 +51,15 @@ func main() {
 			} else {
 				changeDir(argv[1])
 			}
+		case "history":
+			if len(history_stack) == 0 {
+				fmt.Fprintln(os.Stdout, "No commands in history.")
+			} else {
+				for i, cmd := range history_stack {
+					fmt.Fprintf(os.Stdout, "    %d %s\n", i+1, cmd)
+				}
+			}
+			continue
 		default:
 			filePath, exists := findBinInPath(cmd)
 			// ...existing code...
