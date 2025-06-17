@@ -6,11 +6,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-
-	"github.com/google/shlex"
 	"slices"
 	"strconv"
 	"strings"
+	"unicode"
+
+	// "github.com/google/shlex"
 )
 
 // Ensures gofmt doesn't remove the "fmt" import in stage 1 (feel free to remove this!)
@@ -28,8 +29,9 @@ func main() {
 			os.Exit(1)
 		}
 
-		argv, err := shlex.Split(strings.TrimSpace(input))
-		cmd := argv[0]
+		cmd, argv := splitWithQuoting(strings.TrimSpace(input))
+		// argv, err := shlex.Split(strings.TrimSpace(input))
+		// cmd := argv[0]
 
 		switch cmd {
 		case "exit":
@@ -48,10 +50,21 @@ func main() {
 			}
 		default:
 			filePath, exists := findBinInPath(cmd)
-			if exists {
-				command := exec.Command(filePath, argv[1:]...)
+			// ...existing code...
+			parts := strings.Fields(input)
+			if len(parts) == 0 {
+				continue
+			}
 
-				command.Args = append([]string{cmd}, argv[1:]...)
+			if exists {
+				var command *exec.Cmd
+				if len(argv) == 0 {
+					command = exec.Command(filePath)
+					command.Args = []string{cmd}
+				}else {
+					command = exec.Command(filePath, argv[1:]...)
+					command.Args = append([]string{cmd}, argv[1: ]...)
+				}
 				command.Stdout = os.Stdout
 				command.Stderr = os.Stderr
 				if err := command.Run(); err != nil {
@@ -78,6 +91,10 @@ func ExitCommand(argv []string) {
 }
 
 func EchoCommand(argv []string) {
+	if len(argv) < 2 {
+		fmt.Fprintln(os.Stdout, "")
+		return
+	}
 	output := strings.Join(argv[1:], " ")
 	fmt.Fprintf(os.Stdout, "%s\n", output)
 }
@@ -132,7 +149,40 @@ func changeDir(path string) {
 	}
 }
 
-func supportQuoting(input string) string {
-	temp,_ := strconv.Unquote(input) // Remove the first and last character (quotes)
-	return temp
+func splitWithQuoting(inputString string) (string, []string) {
+	var current strings.Builder
+	args := []string{}
+	inSingleQuote := false
+	inDoubleQuote := false
+	escaped := false
+
+	for _, c := range inputString {
+		switch {
+		case escaped:
+			current.WriteRune(c)
+			escaped = false
+		case c == '\\' && !inDoubleQuote && !inSingleQuote:
+			escaped = true
+		case c == '\'' && !inDoubleQuote:
+			inSingleQuote = !inSingleQuote
+		case c == '"' && !inSingleQuote:
+			inDoubleQuote = !inDoubleQuote
+		case unicode.IsSpace(c) && !inSingleQuote && !inDoubleQuote:
+			if current.Len() > 0 {
+				args = append(args, current.String())
+				current.Reset()
+			}
+		default:
+			current.WriteRune(c)
+		}
+	}
+
+	if current.Len() > 0 {
+		args = append(args, current.String())
+	}
+
+	if len(args) == 1 {
+		return args[0], []string{}
+	}
+	return args[0], args
 }
