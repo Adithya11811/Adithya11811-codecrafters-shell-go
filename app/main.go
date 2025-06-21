@@ -15,10 +15,13 @@ import (
 
 var history_stack []string
 
+var hist_map = make(map[int]string)
+
 // Ensures gofmt doesn't remove the "fmt" import in stage 1 (feel free to remove this!)
 var _ = fmt.Fprint
 
 var builtIns = []string{"type", "echo", "exit", "pwd", "history"}
+var hist_cnt int = 0
 
 func main() {
 	for {
@@ -29,8 +32,9 @@ func main() {
 			fmt.Fprintf(os.Stderr, "%s\n", err)
 			os.Exit(1)
 		}
+		hist_cnt++
 
-		history_stack = append(history_stack, strings.TrimSpace(input))
+		hist_map[hist_cnt] = input
 
 		cmd, argv := splitWithQuoting(strings.TrimSpace(input))
 		// argv, err := shlex.Split(strings.TrimSpace(input))
@@ -52,13 +56,7 @@ func main() {
 				changeDir(argv[1])
 			}
 		case "history":
-			if len(history_stack) == 0 {
-				fmt.Fprintln(os.Stdout, "No commands in history.")
-			} else {
-				for i, cmd := range history_stack {
-					fmt.Fprintf(os.Stdout, "    %d %s\n", i+1, cmd)
-				}
-			}
+			HistoryCommand(argv)
 			continue
 		default:
 			filePath, exists := findBinInPath(cmd)
@@ -212,4 +210,30 @@ func splitWithQuoting(inputString string) (string, []string) {
 		return args[0], []string{}
 	}
 	return args[0], args
+}
+
+
+func HistoryCommand(argv []string) {
+	cnt := 0
+
+	if len(argv) > 1 {
+		argCode, err := strconv.Atoi(argv[1])
+		if err == nil { // Only set code if conversion is successful
+			cnt = argCode
+		}
+	}
+	if hist_cnt == 0 {
+		fmt.Fprintln(os.Stdout, "No commands in history.")
+		} else {
+
+			if cnt != 0 {
+				cnt = hist_cnt - cnt
+			}
+
+			for i := cnt; i < hist_cnt; i++ {
+				if command, exists := hist_map[i+1]; exists {
+					fmt.Fprintf(os.Stdout, "    %d %s", i+1, command)
+				}
+			}
+		}
 }
