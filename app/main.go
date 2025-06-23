@@ -1,7 +1,8 @@
 package main
 
 import (
-	"bufio"
+	// "bufio"
+	// "bufio"
 	"fmt"
 	"os"
 	"os/exec"
@@ -9,11 +10,13 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	// "syscall"
 	"unicode"
+
+	// "golang.org/x/term"
+	// "syscall"
 	// "github.com/google/shlex"
 )
-
-var history_stack []string
 
 var hist_map = make(map[int]string)
 
@@ -25,12 +28,19 @@ var hist_cnt int = 0
 
 func main() {
 	for {
-		fmt.Fprint(os.Stdout, "$ ")
+		// fmt.Fprint(os.Stdout, "$ ")
 
-		input, err := bufio.NewReader(os.Stdin).ReadString('\n')
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "%s\n", err)
-			os.Exit(1)
+		input := handleInput("$ ")
+		// os.Stdout.Write([]byte("strawberry blueberry"))
+
+		// input, err := bufio.NewReader(os.Stdin).ReadString('\n')
+		// if err != nil {
+		// 	fmt.Fprintf(os.Stderr, "Error reading input: %s\n", err)
+		// 	continue
+		// }
+		// fmt.Print(len(input))
+		if len(input) == 0 { // this means just enter key is pressed
+			continue
 		}
 		hist_cnt++
 
@@ -39,6 +49,7 @@ func main() {
 		cmd, argv := splitWithQuoting(strings.TrimSpace(input))
 		// argv, err := shlex.Split(strings.TrimSpace(input))
 		// cmd := argv[0]
+
 
 		switch cmd {
 		case "exit":
@@ -60,11 +71,11 @@ func main() {
 			continue
 		default:
 			filePath, exists := findBinInPath(cmd)
-			// ...existing code...
-			parts := strings.Fields(input)
-			if len(parts) == 0 {
-				continue
-			}
+
+			// parts := strings.Fields(input)
+			// if len(parts) == 0 {
+			// 	continue
+			// }
 
 			if exists {
 				var command *exec.Cmd
@@ -86,6 +97,9 @@ func main() {
 		}
 	}
 }
+
+
+
 
 func ExitCommand(argv []string) {
 	code := 0
@@ -159,6 +173,59 @@ func changeDir(path string) {
 	}
 }
 
+// func splitWithQuoting(inputString string) (string, []string) {
+// 	var current strings.Builder
+// 	args := []string{}
+// 	inSingleQuote := false
+// 	inDoubleQuote := false
+// 	escaped := false
+
+// 	for _, c := range inputString {
+// 		switch {
+// 		case escaped:
+// 			if inDoubleQuote {
+// 				switch c {
+// 				case '"', '\\', '$', '`':
+// 					current.WriteRune(c)
+// 				default:
+// 					current.WriteRune('\\')
+// 					current.WriteRune(c)
+// 				}
+// 			} else if !inSingleQuote {
+// 				current.WriteRune(c)
+// 			} else {
+// 				current.WriteRune('\\')
+// 				current.WriteRune(c)
+// 			}
+// 			escaped = false
+// 		case c == '\\' && !inSingleQuote:
+// 			escaped = true
+// 		case c == '\'' && !inDoubleQuote:
+// 			inSingleQuote = !inSingleQuote
+// 		case c == '"' && !inSingleQuote:
+// 			inDoubleQuote = !inDoubleQuote
+// 		case unicode.IsSpace(c) && !inSingleQuote && !inDoubleQuote:
+// 			if current.Len() > 0 {
+// 				args = append(args, current.String())
+// 				current.Reset()
+// 			}
+// 		default:
+// 			current.WriteRune(c)
+// 		}
+// 	}
+
+// 	if escaped {
+// 		current.WriteRune('\\')
+// 	}
+// 	if current.Len() > 0 {
+// 		args = append(args, current.String())
+// 	}
+// 	if len(args) == 1 {
+// 		return args[0], []string{}
+// 	}
+// 	return args[0], args
+// }
+
 func splitWithQuoting(inputString string) (string, []string) {
 	var current strings.Builder
 	args := []string{}
@@ -206,12 +273,14 @@ func splitWithQuoting(inputString string) (string, []string) {
 	if current.Len() > 0 {
 		args = append(args, current.String())
 	}
-	if len(args) == 1 {
-		return args[0], []string{}
+
+	// ✅ Edge case fix
+	if len(args) == 0 {
+		return "", []string{}
 	}
+
 	return args[0], args
 }
-
 
 func HistoryCommand(argv []string) {
 	cnt := 0
@@ -224,16 +293,42 @@ func HistoryCommand(argv []string) {
 	}
 	if hist_cnt == 0 {
 		fmt.Fprintln(os.Stdout, "No commands in history.")
-		} else {
+	} else {
 
-			if cnt != 0 {
-				cnt = hist_cnt - cnt
-			}
+		if cnt != 0 {
+			cnt = hist_cnt - cnt
+		}
 
-			for i := cnt; i < hist_cnt; i++ {
-				if command, exists := hist_map[i+1]; exists {
-					fmt.Fprintf(os.Stdout, "    %d %s", i+1, command)
-				}
+		for i := cnt; i < hist_cnt; i++ {
+			if command, exists := hist_map[i+1]; exists {
+				fmt.Fprintf(os.Stdout, "    %d %s\n", i+1, command)
 			}
 		}
+	}
+}
+
+func moveUpDownHistory(direction int) string {
+	if hist_cnt == 0 {
+		fmt.Fprintln(os.Stdout, "No commands in history.")
+		return ""
+	}
+	cur_cnt := hist_cnt + 1
+
+	if direction == 0 { // Move up
+		if cur_cnt > 1 {
+			cur_cnt--
+		}
+	} else if direction == 1 { // Move down
+		if cur_cnt < len(hist_map) {
+			cur_cnt++
+		}
+	}
+
+	if command, exists := hist_map[cur_cnt]; exists {
+		fmt.Fprintf(os.Stdout, "%s", command)
+		return command
+	} else {
+		fmt.Fprintln(os.Stdout, "No more commands in history.")
+	}
+	return ""
 }
