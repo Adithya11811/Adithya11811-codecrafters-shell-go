@@ -235,25 +235,47 @@ func HistoryCommand(argv []string) {
 		}
 	}
 	// fmt.Printf("%v %T\n", argv, argv)
-	if len(argv) > 2 && argv[1] == "-r" {
-		//check if argv[2] file exists
-		if _, err := os.Stat(argv[2]); err == nil && !os.IsNotExist(err) {
-			file, err := os.ReadFile(argv[2])
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error reading history file: %s\n", err)
+	if len(argv) > 2 {
+		if argv[1] == "-r" {
+			//check if argv[2] file exists
+			if _, err := os.Stat(argv[2]); err == nil && !os.IsNotExist(err) {
+				file, err := os.ReadFile(argv[2])
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Error reading history file: %s\n", err)
+					return
+				}
+
+				lines := strings.Split(string(file), "\n")
+				for _, line := range lines {
+					if line != "" {
+						hist_cnt++
+						hist_map[hist_cnt] = line
+					}
+				}
+				return // <-- Only load history, do not print anything
+			} else {
+				fmt.Fprintf(os.Stderr, "History file %s does not exist.\n", argv[2])
 				return
 			}
+		}
+		if(argv[1] == "-w"){
+			if len(argv) < 3 {
+				fmt.Fprintln(os.Stderr, "Usage: history -w <filename>")
+				return
+			}
+			file, err := os.Create(argv[2])
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error creating history file: %s\n", err)
+				return
+			}
+			defer file.Close()
 
-			lines := strings.Split(string(file), "\n")
-			for _, line := range lines {
-				if line != "" {
-					hist_cnt++
-					hist_map[hist_cnt] = line
+			for i := 1; i <= hist_cnt; i++ {
+				if command, exists := hist_map[i]; exists {
+					fmt.Fprintf(file, "%s\n", command)
 				}
 			}
-			return // <-- Only load history, do not print anything
-		} else {
-			fmt.Fprintf(os.Stderr, "History file %s does not exist.\n", argv[2])
+
 			return
 		}
 	}
