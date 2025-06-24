@@ -28,6 +28,9 @@ var hist_cnt int = 0
 var lastAppendedHistoryIndex int
 
 func main() {
+	histFile := os.Getenv("HISTFILE")
+	argv := "history -r " + histFile
+	HistoryCommand(strings.Split(argv, " "))
 	for {
 		// fmt.Fprint(os.Stdout, "$ ")
 
@@ -255,7 +258,7 @@ func HistoryCommand(argv []string) {
 				}
 				return // <-- Only load history, do not print anything
 			} else {
-				fmt.Fprintf(os.Stderr, "History file %s does not exist.\n", argv[2])
+				// fmt.Fprintf(os.Stderr, "History file %s does not exist.\n", argv[2])
 				return
 			}
 		}
