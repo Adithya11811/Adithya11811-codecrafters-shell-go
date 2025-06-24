@@ -26,9 +26,10 @@ var _ = fmt.Fprint
 var builtIns = []string{"type", "echo", "exit", "pwd", "history"}
 var hist_cnt int = 0
 var lastAppendedHistoryIndex int
+var histFile string
 
 func main() {
-	histFile := os.Getenv("HISTFILE")
+	histFile = os.Getenv("HISTFILE")
 	argv := "history -r " + histFile
 	HistoryCommand(strings.Split(argv, " "))
 	for {
@@ -110,6 +111,9 @@ func ExitCommand(argv []string) {
 			code = argCode
 		}
 	}
+
+	temp := "history -w " + histFile
+	HistoryCommand(strings.Split(temp, " "))
 
 	os.Exit(code)
 }
@@ -269,7 +273,6 @@ func HistoryCommand(argv []string) {
 			}
 			file, err := os.Create(argv[2])
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error creating history file: %s\n", err)
 				return
 			}
 			defer file.Close()
