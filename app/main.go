@@ -10,9 +10,9 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
 	// "syscall"
 	"unicode"
-
 	// "golang.org/x/term"
 	// "syscall"
 	// "github.com/google/shlex"
@@ -49,7 +49,6 @@ func main() {
 		cmd, argv := splitWithQuoting(strings.TrimSpace(input))
 		// argv, err := shlex.Split(strings.TrimSpace(input))
 		// cmd := argv[0]
-
 
 		switch cmd {
 		case "exit":
@@ -97,9 +96,6 @@ func main() {
 		}
 	}
 }
-
-
-
 
 func ExitCommand(argv []string) {
 	code := 0
@@ -173,59 +169,6 @@ func changeDir(path string) {
 	}
 }
 
-// func splitWithQuoting(inputString string) (string, []string) {
-// 	var current strings.Builder
-// 	args := []string{}
-// 	inSingleQuote := false
-// 	inDoubleQuote := false
-// 	escaped := false
-
-// 	for _, c := range inputString {
-// 		switch {
-// 		case escaped:
-// 			if inDoubleQuote {
-// 				switch c {
-// 				case '"', '\\', '$', '`':
-// 					current.WriteRune(c)
-// 				default:
-// 					current.WriteRune('\\')
-// 					current.WriteRune(c)
-// 				}
-// 			} else if !inSingleQuote {
-// 				current.WriteRune(c)
-// 			} else {
-// 				current.WriteRune('\\')
-// 				current.WriteRune(c)
-// 			}
-// 			escaped = false
-// 		case c == '\\' && !inSingleQuote:
-// 			escaped = true
-// 		case c == '\'' && !inDoubleQuote:
-// 			inSingleQuote = !inSingleQuote
-// 		case c == '"' && !inSingleQuote:
-// 			inDoubleQuote = !inDoubleQuote
-// 		case unicode.IsSpace(c) && !inSingleQuote && !inDoubleQuote:
-// 			if current.Len() > 0 {
-// 				args = append(args, current.String())
-// 				current.Reset()
-// 			}
-// 		default:
-// 			current.WriteRune(c)
-// 		}
-// 	}
-
-// 	if escaped {
-// 		current.WriteRune('\\')
-// 	}
-// 	if current.Len() > 0 {
-// 		args = append(args, current.String())
-// 	}
-// 	if len(args) == 1 {
-// 		return args[0], []string{}
-// 	}
-// 	return args[0], args
-// }
-
 func splitWithQuoting(inputString string) (string, []string) {
 	var current strings.Builder
 	args := []string{}
@@ -291,6 +234,30 @@ func HistoryCommand(argv []string) {
 			cnt = argCode
 		}
 	}
+	// fmt.Printf("%v %T\n", argv, argv)
+	if len(argv) > 2 && argv[1] == "-r" {
+		//check if argv[2] file exists
+		if _, err := os.Stat(argv[2]); err == nil && !os.IsNotExist(err) {
+			file, err := os.ReadFile(argv[2])
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error reading history file: %s\n", err)
+				return
+			}
+
+			lines := strings.Split(string(file), "\n")
+			for _, line := range lines {
+				if line != "" {
+					hist_cnt++
+					hist_map[hist_cnt] = line
+				}
+			}
+			return // <-- Only load history, do not print anything
+		} else {
+			fmt.Fprintf(os.Stderr, "History file %s does not exist.\n", argv[2])
+			return
+		}
+	}
+
 	if hist_cnt == 0 {
 		fmt.Fprintln(os.Stdout, "No commands in history.")
 	} else {
