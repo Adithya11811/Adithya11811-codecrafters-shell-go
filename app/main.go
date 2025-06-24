@@ -25,6 +25,7 @@ var _ = fmt.Fprint
 
 var builtIns = []string{"type", "echo", "exit", "pwd", "history"}
 var hist_cnt int = 0
+var lastAppendedHistoryIndex int
 
 func main() {
 	for {
@@ -258,7 +259,7 @@ func HistoryCommand(argv []string) {
 				return
 			}
 		}
-		if(argv[1] == "-w"){
+		if argv[1] == "-w" {
 			if len(argv) < 3 {
 				fmt.Fprintln(os.Stderr, "Usage: history -w <filename>")
 				return
@@ -277,6 +278,28 @@ func HistoryCommand(argv []string) {
 			}
 
 			return
+		}
+
+		if argv[1] == "-a" {
+			if len(argv) < 3 {
+				fmt.Fprintln(os.Stderr, "Usage: history -a <filename>")
+				return
+			}
+			file, err := os.OpenFile(argv[2], os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error opening history file: %s\n", err)
+				return
+			}
+			defer file.Close()
+
+			for i := lastAppendedHistoryIndex + 1; i <= hist_cnt; i++ {
+				if command, exists := hist_map[i]; exists {
+					fmt.Fprintln(file, command)
+				}
+			}
+			lastAppendedHistoryIndex = hist_cnt
+			return
+
 		}
 	}
 
