@@ -129,6 +129,8 @@ func handleInput(prompt string) string {
 			completions := trie.AutoComplete(input.String())
 			if len(completions) == 0 {
 				// No completions, do nothing
+				//how to send a bell sound?
+				fmt.Print("\a") // Bell sound
 				break
 			}
 			if len(completions) == 1 {
