@@ -132,9 +132,9 @@ func handleInput(prompt string) string {
 				break
 			}
 			if len(completions) == 1 {
-				// Only one completion, auto-complete the input
+				// Only one completion, auto-complete the input and add a space
 				curr := input.String()
-				toAdd := completions[0][len(curr):]
+				toAdd := completions[0][len(curr):] + " "
 				input.WriteString(toAdd)
 				fmt.Print(toAdd)
 			} else {
