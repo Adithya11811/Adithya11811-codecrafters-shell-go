@@ -40,6 +40,10 @@ func main() {
 		trie.insert(builtIns[i])
 	}
 
+	for _, exe := range getPathExecutables() {
+		trie.insert(exe)
+	}
+
 	for {
 		// fmt.Fprint(os.Stdout, "$ ")
 
@@ -357,4 +361,28 @@ func moveUpDownHistory(direction int) string {
 		fmt.Fprintln(os.Stdout, "No more commands in history.")
 	}
 	return ""
+}
+
+func getPathExecutables() []string {
+    pathEnv := os.Getenv("PATH")
+    paths := strings.Split(pathEnv, ":")
+    seen := make(map[string]struct{})
+    var executables []string
+
+    for _, dir := range paths {
+        files, err := os.ReadDir(dir)
+        if err != nil {
+            continue
+        }
+        for _, file := range files {
+            if file.Type().IsRegular() || file.Type()&os.ModeSymlink != 0 {
+                name := file.Name()
+                if _, ok := seen[name]; !ok {
+                    seen[name] = struct{}{}
+                    executables = append(executables, name)
+                }
+            }
+        }
+    }
+    return executables
 }
