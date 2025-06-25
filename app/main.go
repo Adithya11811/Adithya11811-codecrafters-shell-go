@@ -28,10 +28,18 @@ var hist_cnt int = 0
 var lastAppendedHistoryIndex int
 var histFile string
 
+var trie *Trie
+
 func main() {
 	histFile = os.Getenv("HISTFILE")
 	argv := "history -r " + histFile
 	HistoryCommand(strings.Split(argv, " "))
+	trie = NewTrie()
+
+	for i := 0; i< len(builtIns); i++ {
+		trie.insert(builtIns[i])
+	}
+
 	for {
 		// fmt.Fprint(os.Stdout, "$ ")
 

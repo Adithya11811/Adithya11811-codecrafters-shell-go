@@ -125,6 +125,29 @@ func handleInput(prompt string) string {
 			term.Restore(fd, oldState)
 			os.Exit(0)
 
+		case 9: // Tab key
+			completions := trie.AutoComplete(input.String())
+			if len(completions) == 0 {
+				// No completions, do nothing
+				break
+			}
+			if len(completions) == 1 {
+				// Only one completion, auto-complete the input
+				curr := input.String()
+				toAdd := completions[0][len(curr):]
+				input.WriteString(toAdd)
+				fmt.Print(toAdd)
+			} else {
+				// Multiple completions, print them all
+				fmt.Print("\r\n")
+				for _, c := range completions {
+					fmt.Println(c)
+				}
+				// Redraw the prompt and current input
+				fmt.Print(prompt, input.String())
+			}
+			continue
+
 		case 27: // Escape sequence (e.g. arrow keys)
 			var buf2 [2]byte
 			n, err := os.Stdin.Read(buf2[:])
