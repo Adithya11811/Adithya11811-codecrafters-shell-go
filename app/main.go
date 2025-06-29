@@ -13,6 +13,8 @@ import (
 
 	// "syscall"
 	"unicode"
+
+	"github.com/cosiner/argv"
 	// "golang.org/x/term"
 	// "syscall"
 	// "github.com/google/shlex"
@@ -119,8 +121,12 @@ func main() {
 		cmd, argv := splitWithQuoting(trimmedInput)
 		// argv, err := shlex.Split(strings.TrimSpace(input))
 		// cmd := argv[0]
+		Menu(cmd, argv)
 
-		switch cmd {
+	}
+}
+func Menu(cmd string, argv[] string) {
+			switch cmd {
 		case "exit":
 			ExitCommand(argv, &hist)
 		case "echo":
@@ -137,15 +143,9 @@ func main() {
 			}
 		case "history":
 			HistoryCommand(argv, &hist)
-			continue
+			return
 		default:
 			filePath, exists := findBinInPath(cmd)
-
-			// parts := strings.Fields(input)
-			// if len(parts) == 0 {
-			// 	continue
-			// }
-
 			if exists {
 				var command *exec.Cmd
 				if len(argv) == 0 {
@@ -164,7 +164,6 @@ func main() {
 				fmt.Fprintf(os.Stderr, "%s: command not found\n", cmd)
 			}
 		}
-	}
 }
 
 func ExitCommand(argv []string, hist *History) {
