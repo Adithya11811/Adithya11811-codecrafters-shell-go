@@ -13,6 +13,7 @@ var hist History
 var trie *Trie
 
 var builtIns = []string{"type", "echo", "exit", "pwd", "history"}
+var outputFile *os.File
 
 type History struct {
 	Entries           []string
@@ -107,30 +108,42 @@ func main() {
 		}
 
 		cmd, argv := splitWithQuoting(trimmedInput)
-		// argv, err := shlex.Split(strings.TrimSpace(input))
-		// cmd := argv[0]
-		Menu(cmd, argv)
+		argv, outputFile, err := HandleRedirect(argv)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			continue
+		}
+
+		Menu(cmd, argv, outputFile)
+
+		if outputFile != nil {
+			outputFile.Close()
+		}
 
 	}
 }
-func Menu(cmd string, argv []string) {
+func Menu(cmd string, argv []string, outputFile *os.File) {
+	out := os.Stdout
+	if outputFile != nil {
+		out = outputFile
+	}
 	switch cmd {
 	case "exit":
-		ExitCommand(argv, os.Stdin, os.Stdout, &hist)
+		ExitCommand(argv, os.Stdin, out, &hist)
 	case "echo":
-		EchoCommand(argv, os.Stdin, os.Stdout)
+		EchoCommand(argv, os.Stdin, out)
 	case "type":
-		TypeCommand(argv, os.Stdin, os.Stdout)
+		TypeCommand(argv, os.Stdin, out)
 	case "pwd":
-		getCurrentDir(argv, os.Stdin, os.Stdout)
+		getCurrentDir(argv, os.Stdin, out)
 	case "cd":
 		if len(argv) < 2 {
-			changeDir([]string{"cd", os.Getenv("HOME")}, os.Stdin, os.Stdout) // Default to HOME if no argument is provided
+			changeDir([]string{"cd", os.Getenv("HOME")}, os.Stdin, out) // Default to HOME if no argument is provided
 		} else {
-			changeDir(argv, os.Stdin, os.Stdout)
+			changeDir(argv, os.Stdin, out)
 		}
 	case "history":
-		HistoryCommand(argv, os.Stdin, os.Stdout, &hist)
+		HistoryCommand(argv, os.Stdin, out, &hist)
 		return
 	default:
 		filePath, exists := findBinInPath(cmd)
@@ -144,10 +157,10 @@ func Menu(cmd string, argv []string) {
 				command.Args = append([]string{cmd}, argv[1:]...)
 			}
 			command.Stdin = os.Stdin
-			command.Stdout = os.Stdout
+			command.Stdout = out
 			command.Stderr = os.Stderr
 			if err := command.Run(); err != nil {
-				fmt.Fprintf(os.Stderr, "%s: %s\n", cmd, err)
+				// Do not print extra error message, let command's stderr show
 			}
 		} else {
 			fmt.Fprintf(os.Stderr, "%s: command not found\n", cmd)
@@ -258,4 +271,23 @@ func splitWithQuoting(inputString string) (string, []string) {
 	}
 
 	return args[0], args
+}
+
+// HandleRedirect parses argv for output redirection and returns cleaned argv and output file
+func HandleRedirect(argv []string) ([]string, *os.File, error) {
+	var outFile *os.File
+	cleaned := []string{}
+	for i := 0; i < len(argv); i++ {
+		if (argv[i] == ">" || argv[i] == "1>") && i+1 < len(argv) {
+			f, err := os.Create(argv[i+1])
+			if err != nil {
+				return argv, nil, fmt.Errorf("Error creating output file: %w", err)
+			}
+			outFile = f
+			i++ // skip filename
+		} else {
+			cleaned = append(cleaned, argv[i])
+		}
+	}
+	return cleaned, outFile, nil
 }
