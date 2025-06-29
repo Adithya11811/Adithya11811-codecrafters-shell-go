@@ -21,17 +21,122 @@ func isBuiltin(cmd string) bool {
 }
 
 func HandlePipe(input string) {
-	parts := strings.SplitN(input, "|", 2)
-	left := strings.TrimSpace(parts[0])
-	right := strings.TrimSpace(parts[1])
-
-	err := executePipelineBuiltinAware(strings.Split(left, " "), strings.Split(right, " "))
-	if err != nil {
+	// Split input into N commands, respecting quoting
+	cmdStrs := splitPipelineWithQuoting(input)
+	cmds := make([][]string, len(cmdStrs))
+	for i, s := range cmdStrs {
+		_, argv := splitWithQuoting(strings.TrimSpace(s))
+		cmds[i] = argv
+	}
+	if len(cmds) < 2 {
+		return // Not a pipeline
+	}
+	if err := executeNPipeline(cmds); err != nil {
 		fmt.Fprintf(os.Stderr, "Error executing pipeline: %s\n", err)
-		return
 	}
 }
 
+// Split a pipeline string into command segments, respecting quotes
+func splitPipelineWithQuoting(input string) []string {
+	var result []string
+	var current strings.Builder
+	inSingle, inDouble := false, false
+	for _, c := range input {
+		if c == '|' && !inSingle && !inDouble {
+			result = append(result, current.String())
+			current.Reset()
+			continue
+		}
+		if c == '\'' && !inDouble {
+			inSingle = !inSingle
+		}
+		if c == '"' && !inSingle {
+			inDouble = !inDouble
+		}
+		current.WriteRune(c)
+	}
+	if current.Len() > 0 {
+		result = append(result, current.String())
+	}
+	return result
+}
+
+// Generalized N-length pipeline executor
+func executeNPipeline(cmds [][]string) error {
+	n := len(cmds)
+	pipes := make([]*io.PipeWriter, n-1)
+	readers := make([]*io.PipeReader, n-1)
+	for i := 0; i < n-1; i++ {
+		readers[i], pipes[i] = io.Pipe()
+	}
+	errCh := make(chan error, n)
+
+	for i := 0; i < n; i++ {
+		in := io.Reader(nil)
+		out := io.Writer(nil)
+		if i == 0 {
+			in = os.Stdin
+		} else {
+			in = readers[i-1]
+		}
+		if i == n-1 {
+			out = os.Stdout
+		} else {
+			out = pipes[i]
+		}
+		cmdArgs := cmds[i]
+		if len(cmdArgs) == 0 {
+			continue
+		}
+		if isBuiltin(cmdArgs[0]) {
+			go func(i int, cmdArgs []string, in io.Reader, out io.Writer) {
+				callBuiltin(cmdArgs, in, out)
+				if i != n-1 {
+					if pw, ok := out.(*io.PipeWriter); ok {
+						pw.Close()
+					}
+				}
+				errCh <- nil
+			}(i, cmdArgs, in, out)
+		} else {
+			go func(i int, cmdArgs []string, in io.Reader, out io.Writer) {
+				filePath, exists := findBinInPath(cmdArgs[0])
+				if !exists {
+					errCh <- fmt.Errorf("%s: command not found", cmdArgs[0])
+					if i != n-1 {
+						if pw, ok := out.(*io.PipeWriter); ok {
+							pw.Close()
+						}
+					}
+					return
+				}
+				cmd := exec.Command(filePath, cmdArgs[1:]...)
+				cmd.Stdin = in
+				cmd.Stdout = out
+				cmd.Stderr = os.Stderr
+				err := cmd.Run()
+				if i != n-1 {
+					if pw, ok := out.(*io.PipeWriter); ok {
+						pw.Close()
+					}
+				}
+				errCh <- err
+			}(i, cmdArgs, in, out)
+		}
+	}
+	// Only drain the last reader if the last command is a builtin
+	if isBuiltin(cmds[n-1][0]) && n > 1 {
+		go io.Copy(io.Discard, readers[n-2])
+	}
+	var finalErr error
+	for i := 0; i < n; i++ {
+		err := <-errCh
+		if err != nil && finalErr == nil {
+			finalErr = err
+		}
+	}
+	return finalErr
+}
 
 // Pipeline handler that supports builtins on both sides
 func executePipelineBuiltinAware(cmd1Args []string, cmd2Args []string) error {
