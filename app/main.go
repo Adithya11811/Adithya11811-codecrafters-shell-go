@@ -108,9 +108,15 @@ func main() {
 			continue
 		}
 		hist.Add(input)
-		historyIndex = hist.Len() // Reset historyIndex after each input
+		historyIndex = hist.Len()
+		trimmedInput := strings.TrimSpace(input)
 
-		cmd, argv := splitWithQuoting(strings.TrimSpace(input))
+		if strings.Contains(trimmedInput, "|") {
+			HandlePipe(trimmedInput)
+			continue
+		}
+
+		cmd, argv := splitWithQuoting(trimmedInput)
 		// argv, err := shlex.Split(strings.TrimSpace(input))
 		// cmd := argv[0]
 
