@@ -18,25 +18,80 @@ import (
 	// "github.com/google/shlex"
 )
 
-var hist_map = make(map[int]string)
-
-// Ensures gofmt doesn't remove the "fmt" import in stage 1 (feel free to remove this!)
-var _ = fmt.Fprint
-
-var builtIns = []string{"type", "echo", "exit", "pwd", "history"}
-var hist_cnt int = 0
-var lastAppendedHistoryIndex int
 var histFile string
-
+var hist History
 var trie *Trie
 
+var builtIns = []string{"type", "echo", "exit", "pwd", "history"}
+
+type History struct {
+	Entries           []string
+	lastAppendedIndex int
+}
+
+func (h *History) Add(entry string) {
+	h.Entries = append(h.Entries, entry)
+}
+
+func (h *History) Get(index int) (string, bool) {
+	if index >= 0 && index < len(h.Entries) {
+		return h.Entries[index], true
+	}
+	return "", false
+}
+
+func (h *History) Len() int {
+	return len(h.Entries)
+}
+
+func (h *History) WriteToFile(filename string) error {
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	for _, entry := range h.Entries {
+		fmt.Fprintln(file, entry)
+	}
+	return nil
+}
+
+func (h *History) AppendToFile(filename string) error {
+	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	for i := h.lastAppendedIndex; i < len(h.Entries); i++ {
+		fmt.Fprintln(file, h.Entries[i])
+	}
+	h.lastAppendedIndex = len(h.Entries)
+	return nil
+}
+
+func (h *History) ReadFromFile(filename string) error {
+	file, err := os.ReadFile(filename)
+	if err != nil {
+		return err
+	}
+	lines := strings.Split(string(file), "\n")
+	for _, line := range lines {
+		if line != "" {
+			h.Entries = append(h.Entries, line)
+		}
+	}
+	h.lastAppendedIndex = len(h.Entries)
+	return nil
+}
+
 func main() {
+	hist = History{}
 	histFile = os.Getenv("HISTFILE")
 	argv := "history -r " + histFile
-	HistoryCommand(strings.Split(argv, " "))
+	HistoryCommand(strings.Split(argv, " "), &hist)
 	trie = NewTrie()
 
-	for i := 0; i< len(builtIns); i++ {
+	for i := 0; i < len(builtIns); i++ {
 		trie.insert(builtIns[i])
 	}
 
@@ -46,22 +101,14 @@ func main() {
 
 	for {
 		// fmt.Fprint(os.Stdout, "$ ")
-
+		historyIndex = hist.Len()
 		input := handleInput("$ ")
-		// os.Stdout.Write([]byte("strawberry blueberry"))
-
-		// input, err := bufio.NewReader(os.Stdin).ReadString('\n')
-		// if err != nil {
-		// 	fmt.Fprintf(os.Stderr, "Error reading input: %s\n", err)
-		// 	continue
-		// }
-		// fmt.Print(len(input))
-		if len(input) == 0 { // this means just enter key is pressed
+		if len(input) == 0 {
+			historyIndex = hist.Len() // Reset historyIndex after each input
 			continue
 		}
-		hist_cnt++
-
-		hist_map[hist_cnt] = input
+		hist.Add(input)
+		historyIndex = hist.Len() // Reset historyIndex after each input
 
 		cmd, argv := splitWithQuoting(strings.TrimSpace(input))
 		// argv, err := shlex.Split(strings.TrimSpace(input))
@@ -69,7 +116,7 @@ func main() {
 
 		switch cmd {
 		case "exit":
-			ExitCommand(argv)
+			ExitCommand(argv, &hist)
 		case "echo":
 			EchoCommand(argv)
 		case "type":
@@ -83,7 +130,7 @@ func main() {
 				changeDir(argv[1])
 			}
 		case "history":
-			HistoryCommand(argv)
+			HistoryCommand(argv, &hist)
 			continue
 		default:
 			filePath, exists := findBinInPath(cmd)
@@ -114,7 +161,7 @@ func main() {
 	}
 }
 
-func ExitCommand(argv []string) {
+func ExitCommand(argv []string, hist *History) {
 	code := 0
 
 	if len(argv) > 1 {
@@ -125,7 +172,7 @@ func ExitCommand(argv []string) {
 	}
 
 	temp := "history -w " + histFile
-	HistoryCommand(strings.Split(temp, " "))
+	HistoryCommand(strings.Split(temp, " "), hist)
 
 	os.Exit(code)
 }
@@ -163,11 +210,11 @@ func findBinInPath(bin string) (string, bool) {
 	paths := os.Getenv("PATH")
 	for _, path := range strings.Split(paths, ":") {
 		file := filepath.Join(path, bin)
-		if _, err := os.Stat(file); err == nil {
+		info, err := os.Stat(file)
+		if err == nil && !info.IsDir() && info.Mode()&0111 != 0 {
 			return file, true
 		}
 	}
-
 	return "", false
 }
 
@@ -245,7 +292,7 @@ func splitWithQuoting(inputString string) (string, []string) {
 	return args[0], args
 }
 
-func HistoryCommand(argv []string) {
+func HistoryCommand(argv []string, hist *History) {
 	cnt := 0
 
 	if len(argv) > 1 {
@@ -268,8 +315,7 @@ func HistoryCommand(argv []string) {
 				lines := strings.Split(string(file), "\n")
 				for _, line := range lines {
 					if line != "" {
-						hist_cnt++
-						hist_map[hist_cnt] = line
+						hist.Add(line)
 					}
 				}
 				return // <-- Only load history, do not print anything
@@ -289,8 +335,8 @@ func HistoryCommand(argv []string) {
 			}
 			defer file.Close()
 
-			for i := 1; i <= hist_cnt; i++ {
-				if command, exists := hist_map[i]; exists {
+			for i := 1; i <= hist.Len(); i++ {
+				if command, exists := hist.Get(i - 1); exists {
 					fmt.Fprintf(file, "%s\n", command)
 				}
 			}
@@ -310,27 +356,27 @@ func HistoryCommand(argv []string) {
 			}
 			defer file.Close()
 
-			for i := lastAppendedHistoryIndex + 1; i <= hist_cnt; i++ {
-				if command, exists := hist_map[i]; exists {
+			for i := hist.lastAppendedIndex; i < hist.Len(); i++ {
+				if command, exists := hist.Get(i); exists {
 					fmt.Fprintln(file, command)
 				}
 			}
-			lastAppendedHistoryIndex = hist_cnt
+			hist.lastAppendedIndex = hist.Len()
 			return
 
 		}
 	}
 
-	if hist_cnt == 0 {
+	if hist.Len() == 0 {
 		fmt.Fprintln(os.Stdout, "No commands in history.")
 	} else {
 
 		if cnt != 0 {
-			cnt = hist_cnt - cnt
+			cnt = hist.Len() - cnt
 		}
 
-		for i := cnt; i < hist_cnt; i++ {
-			if command, exists := hist_map[i+1]; exists {
+		for i := cnt; i < hist.Len(); i++ {
+			if command, exists := hist.Get(i); exists {
 				fmt.Fprintf(os.Stdout, "    %d %s\n", i+1, command)
 			}
 		}
@@ -338,23 +384,23 @@ func HistoryCommand(argv []string) {
 }
 
 func moveUpDownHistory(direction int) string {
-	if hist_cnt == 0 {
+	if hist.Len() == 0 {
 		fmt.Fprintln(os.Stdout, "No commands in history.")
 		return ""
 	}
-	cur_cnt := hist_cnt + 1
+	cur_cnt := hist.Len() + 1
 
 	if direction == 0 { // Move up
 		if cur_cnt > 1 {
 			cur_cnt--
 		}
 	} else if direction == 1 { // Move down
-		if cur_cnt < len(hist_map) {
+		if cur_cnt < len(hist.Entries) {
 			cur_cnt++
 		}
 	}
 
-	if command, exists := hist_map[cur_cnt]; exists {
+	if command, exists := hist.Get(cur_cnt - 1); exists {
 		fmt.Fprintf(os.Stdout, "%s", command)
 		return command
 	} else {
@@ -364,25 +410,25 @@ func moveUpDownHistory(direction int) string {
 }
 
 func getPathExecutables() []string {
-    pathEnv := os.Getenv("PATH")
-    paths := strings.Split(pathEnv, ":")
-    seen := make(map[string]struct{})
-    var executables []string
+	pathEnv := os.Getenv("PATH")
+	paths := strings.Split(pathEnv, ":")
+	seen := make(map[string]struct{})
+	var executables []string
 
-    for _, dir := range paths {
-        files, err := os.ReadDir(dir)
-        if err != nil {
-            continue
-        }
-        for _, file := range files {
-            if file.Type().IsRegular() || file.Type()&os.ModeSymlink != 0 {
-                name := file.Name()
-                if _, ok := seen[name]; !ok {
-                    seen[name] = struct{}{}
-                    executables = append(executables, name)
-                }
-            }
-        }
-    }
-    return executables
+	for _, dir := range paths {
+		files, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, file := range files {
+			if file.Type().IsRegular() || file.Type()&os.ModeSymlink != 0 {
+				name := file.Name()
+				if _, ok := seen[name]; !ok {
+					seen[name] = struct{}{}
+					executables = append(executables, name)
+				}
+			}
+		}
+	}
+	return executables
 }

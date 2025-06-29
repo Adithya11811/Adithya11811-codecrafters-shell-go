@@ -66,3 +66,26 @@ func (t* Trie) dfs(node *TrieNode, prefix string, results *[]string) {
 		t.dfs(child, prefix+string(char), results)
 	}
 }
+
+func (t *Trie) Delete(word string) {
+	var deleteHelper func(node *TrieNode, word string, depth int) bool
+	deleteHelper = func(node *TrieNode, word string, depth int) bool {
+		if node == nil {
+			return false
+		}
+		if depth == len(word) {
+			if node.IsEnd {
+				node.IsEnd = false
+				return len(node.Children) == 0
+			}
+			return false
+		}
+		char := rune(word[depth])
+		if deleteHelper(node.Children[char], word, depth+1) {
+			delete(node.Children, char)
+			return !node.IsEnd && len(node.Children) == 0
+		}
+		return false
+	}
+	deleteHelper(t.Root, word, 0)
+}
