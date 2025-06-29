@@ -278,7 +278,7 @@ func splitWithQuoting(inputString string) (string, []string) {
 	return args[0], args
 }
 
-// HandleRedirect parses argv for output and error redirection and returns cleaned argv, output file, and error file
+// HandleRedirect parses argv for output and error redirection (including append) and returns cleaned argv, output file, and error file
 func HandleRedirect(argv []string) ([]string, *os.File, *os.File, error) {
 	var outFile *os.File
 	var errFile *os.File
@@ -291,10 +291,24 @@ func HandleRedirect(argv []string) ([]string, *os.File, *os.File, error) {
 			}
 			outFile = f
 			i++ // skip filename
+		} else if (argv[i] == ">>" || argv[i] == "1>>") && i+1 < len(argv) {
+			f, err := os.OpenFile(argv[i+1], os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			if err != nil {
+				return argv, nil, nil, fmt.Errorf("Error opening output file for append: %w", err)
+			}
+			outFile = f
+			i++ // skip filename
 		} else if argv[i] == "2>" && i+1 < len(argv) {
 			f, err := os.Create(argv[i+1])
 			if err != nil {
 				return argv, nil, nil, fmt.Errorf("Error creating error file: %w", err)
+			}
+			errFile = f
+			i++ // skip filename
+		} else if argv[i] == "2>>" && i+1 < len(argv) {
+			f, err := os.OpenFile(argv[i+1], os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			if err != nil {
+				return argv, nil, nil, fmt.Errorf("Error opening error file for append: %w", err)
 			}
 			errFile = f
 			i++ // skip filename
