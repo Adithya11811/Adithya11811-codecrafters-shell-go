@@ -108,24 +108,31 @@ func main() {
 		}
 
 		cmd, argv := splitWithQuoting(trimmedInput)
-		argv, outputFile, err := HandleRedirect(argv)
+		argv, outputFile, errorFile, err := HandleRedirect(argv)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			continue
 		}
 
-		Menu(cmd, argv, outputFile)
+		Menu(cmd, argv, outputFile, errorFile)
 
 		if outputFile != nil {
 			outputFile.Close()
 		}
+		if errorFile != nil {
+			errorFile.Close()
+		}
 
 	}
 }
-func Menu(cmd string, argv []string, outputFile *os.File) {
+func Menu(cmd string, argv []string, outputFile *os.File, errorFile *os.File) {
 	out := os.Stdout
+	errOut := os.Stderr
 	if outputFile != nil {
 		out = outputFile
+	}
+	if errorFile != nil {
+		errOut = errorFile
 	}
 	switch cmd {
 	case "exit":
@@ -158,12 +165,10 @@ func Menu(cmd string, argv []string, outputFile *os.File) {
 			}
 			command.Stdin = os.Stdin
 			command.Stdout = out
-			command.Stderr = os.Stderr
-			if err := command.Run(); err != nil {
-				// Do not print extra error message, let command's stderr show
-			}
+			command.Stderr = errOut
+			_ = command.Run()
 		} else {
-			fmt.Fprintf(os.Stderr, "%s: command not found\n", cmd)
+			fmt.Fprintf(errOut, "%s: command not found\n", cmd)
 		}
 	}
 }
@@ -273,21 +278,29 @@ func splitWithQuoting(inputString string) (string, []string) {
 	return args[0], args
 }
 
-// HandleRedirect parses argv for output redirection and returns cleaned argv and output file
-func HandleRedirect(argv []string) ([]string, *os.File, error) {
+// HandleRedirect parses argv for output and error redirection and returns cleaned argv, output file, and error file
+func HandleRedirect(argv []string) ([]string, *os.File, *os.File, error) {
 	var outFile *os.File
+	var errFile *os.File
 	cleaned := []string{}
 	for i := 0; i < len(argv); i++ {
 		if (argv[i] == ">" || argv[i] == "1>") && i+1 < len(argv) {
 			f, err := os.Create(argv[i+1])
 			if err != nil {
-				return argv, nil, fmt.Errorf("Error creating output file: %w", err)
+				return argv, nil, nil, fmt.Errorf("Error creating output file: %w", err)
 			}
 			outFile = f
+			i++ // skip filename
+		} else if argv[i] == "2>" && i+1 < len(argv) {
+			f, err := os.Create(argv[i+1])
+			if err != nil {
+				return argv, nil, nil, fmt.Errorf("Error creating error file: %w", err)
+			}
+			errFile = f
 			i++ // skip filename
 		} else {
 			cleaned = append(cleaned, argv[i])
 		}
 	}
-	return cleaned, outFile, nil
+	return cleaned, outFile, errFile, nil
 }
