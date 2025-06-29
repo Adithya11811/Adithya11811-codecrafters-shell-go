@@ -70,10 +70,24 @@ func handleInput(prompt string) string {
 				fmt.Print("\a") // Bell sound
 				break
 			}
-			if len(completions) == 1 {
-				toAdd := completions[0][len(currInput):] + " "
+			// Find the longest common prefix
+			lcp := completions[0]
+			for _, c := range completions[1:] {
+				i := 0
+				for i < len(lcp) && i < len(c) && lcp[i] == c[i] {
+					i++
+				}
+				lcp = lcp[:i]
+			}
+			if len(lcp) > len(currInput) {
+				toAdd := lcp[len(currInput):]
 				input.WriteString(toAdd)
 				fmt.Print(toAdd)
+				// Add a space if there is exactly one match and the LCP is a full match
+				if len(completions) == 1 && lcp == completions[0] {
+					input.WriteString(" ")
+					fmt.Print(" ")
+				}
 				tabCount = 0
 				lastTabInput = ""
 			} else {
@@ -81,7 +95,6 @@ func handleInput(prompt string) string {
 					fmt.Print("\a") // First Tab: bell
 				} else if tabCount == 2 {
 					fmt.Print("\r\n")
-					// Sort completions lexicographically before printing
 					slices.Sort(completions)
 					for i, c := range completions {
 						if i > 0 {
